@@ -50,16 +50,6 @@ coverage.xml
 docs/_build/
 site/
 
-# Project specific
-output/
-*.wav
-*.wav.key
-*.wav.info
-*.mp3
-*.ogg
-*.aac
-*.flac
-!sample*.wav
 
 # Log files
 *.log
