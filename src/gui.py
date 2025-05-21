@@ -59,10 +59,12 @@ class AudioStegoGUI(QMainWindow):
         self.tabs = QTabWidget()
         self.embed_tab = QWidget()
         self.extract_tab = QWidget()
+        self.analysis_tab = QWidget()  # New analysis tab
         self.about_tab = QWidget()
         
         self.tabs.addTab(self.embed_tab, "Embed Message")
         self.tabs.addTab(self.extract_tab, "Extract Message")
+        self.tabs.addTab(self.analysis_tab, "Analysis")  # Add the analysis tab
         self.tabs.addTab(self.about_tab, "About")
         
         self.layout.addWidget(self.tabs)
@@ -70,8 +72,12 @@ class AudioStegoGUI(QMainWindow):
         # Setup each tab
         self.setup_embed_tab()
         self.setup_extract_tab()
+        self.setup_analysis_tab()  # Setup the analysis tab
         self.setup_about_tab()
         
+        # Store report file path
+        self.current_report_path = None
+
     def setup_embed_tab(self):
         layout = QVBoxLayout(self.embed_tab)
         
@@ -296,6 +302,85 @@ class AudioStegoGUI(QMainWindow):
         layout.addWidget(version)
         layout.addWidget(credits)
     
+    def setup_analysis_tab(self):
+        layout = QVBoxLayout(self.analysis_tab)
+        
+        # Original file selection
+        original_group = QGroupBox("Original Audio")
+        original_layout = QHBoxLayout()
+        
+        self.original_file_path = QLineEdit()
+        self.original_file_path.setPlaceholderText("Select original audio file")
+        
+        browse_original_btn = QPushButton("Browse...")
+        browse_original_btn.clicked.connect(self.browse_original_file)
+        
+        original_layout.addWidget(self.original_file_path)
+        original_layout.addWidget(browse_original_btn)
+        original_group.setLayout(original_layout)
+        layout.addWidget(original_group)
+        
+        # Stego file selection
+        stego_analysis_group = QGroupBox("Stego Audio")
+        stego_analysis_layout = QHBoxLayout()
+        
+        self.stego_analysis_file_path = QLineEdit()
+        self.stego_analysis_file_path.setPlaceholderText("Select stego audio file")
+        
+        browse_stego_analysis_btn = QPushButton("Browse...")
+        browse_stego_analysis_btn.clicked.connect(self.browse_stego_analysis_file)
+        
+        stego_analysis_layout.addWidget(self.stego_analysis_file_path)
+        stego_analysis_layout.addWidget(browse_stego_analysis_btn)
+        stego_analysis_group.setLayout(stego_analysis_layout)
+        layout.addWidget(stego_analysis_group)
+        
+        # Message input for security analysis
+        security_group = QGroupBox("Security Analysis")
+        security_layout = QVBoxLayout()
+        
+        message_layout = QHBoxLayout()
+        message_label = QLabel("Message:")
+        self.security_message = QLineEdit()
+        self.security_message.setPlaceholderText("Enter a message to analyze security metrics")
+        message_layout.addWidget(message_label)
+        message_layout.addWidget(self.security_message)
+        
+        security_layout.addLayout(message_layout)
+        security_group.setLayout(security_layout)
+        layout.addWidget(security_group)
+        
+        # Results display
+        results_group = QGroupBox("Analysis Results")
+        results_layout = QVBoxLayout()
+        
+        self.results_text = QTextEdit()
+        self.results_text.setReadOnly(True)
+        self.results_text.setMinimumHeight(150)
+        
+        results_layout.addWidget(self.results_text)
+        results_group.setLayout(results_layout)
+        layout.addWidget(results_group)
+        
+        # Analysis buttons
+        buttons_layout = QHBoxLayout()
+        
+        self.quality_button = QPushButton("Audio Quality Analysis")
+        self.quality_button.clicked.connect(self.analyze_audio_quality)
+        
+        self.security_button = QPushButton("Security Analysis")
+        self.security_button.clicked.connect(self.analyze_security)
+        
+        self.view_report_button = QPushButton("View Report")
+        self.view_report_button.clicked.connect(self.view_report)
+        self.view_report_button.setEnabled(False)
+        
+        buttons_layout.addWidget(self.quality_button)
+        buttons_layout.addWidget(self.security_button)
+        buttons_layout.addWidget(self.view_report_button)
+        
+        layout.addLayout(buttons_layout)
+    
     def toggle_message_input(self):
         """Switch between text and image message input"""
         if self.text_radio.isChecked():
@@ -327,6 +412,16 @@ class AudioStegoGUI(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Stego Audio File", "", "Audio Files (*.wav)")
         if file_path:
             self.stego_file_path.setText(file_path)
+    
+    def browse_original_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Original Audio File", "", "Audio Files (*.wav)")
+        if file_path:
+            self.original_file_path.setText(file_path)
+    
+    def browse_stego_analysis_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Stego Audio File", "", "Audio Files (*.wav)")
+        if file_path:
+            self.stego_analysis_file_path.setText(file_path)
     
     def generate_sample_audio(self):
         # Default path for sample audio
@@ -511,6 +606,91 @@ class AudioStegoGUI(QMainWindow):
         self.embed_button.setEnabled(True)
         self.extract_button.setEnabled(True)
         QMessageBox.warning(self, "Error", error_message)
+
+    def analyze_audio_quality(self):
+        from utils.metrics import generate_quality_report
+        
+        original_file = self.original_file_path.text()
+        stego_file = self.stego_analysis_file_path.text()
+        
+        if not original_file or not os.path.exists(original_file):
+            QMessageBox.warning(self, "Warning", "Please select a valid original audio file.")
+            return
+        
+        if not stego_file or not os.path.exists(stego_file):
+            QMessageBox.warning(self, "Warning", "Please select a valid stego audio file.")
+            return
+        
+        try:
+            self.results_text.clear()
+            self.results_text.append("Analyzing audio quality...")
+            
+            # Generate quality report
+            metrics = generate_quality_report(original_file, stego_file)
+            
+            # Display results
+            self.results_text.append(f"\nQuality Metrics:")
+            self.results_text.append(f"- Mean Square Error (MSE): {metrics['mse']:.6f}")
+            self.results_text.append(f"- Peak Signal-to-Noise Ratio (PSNR): {metrics['psnr']:.2f} dB")
+            self.results_text.append(f"- Structural Similarity Index (SSIM): {metrics['ssim']:.6f}")
+            self.results_text.append(f"\nQuality Report saved to: {metrics['report_file']}")
+            
+            # Enable view report button
+            self.current_report_path = metrics['report_file']
+            self.view_report_button.setEnabled(True)
+            
+        except Exception as e:
+            self.results_text.append(f"\nError: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Analysis failed: {str(e)}")
+
+    def analyze_security(self):
+        from utils.metrics import analyze_security as analyze_sec
+        
+        message = self.security_message.text()
+        
+        if not message:
+            QMessageBox.warning(self, "Warning", "Please enter a message for security analysis.")
+            return
+        
+        try:
+            self.results_text.clear()
+            self.results_text.append("Analyzing security metrics...")
+            
+            # Generate security analysis
+            metrics = analyze_sec(message)
+            
+            # Display results
+            self.results_text.append(f"\nSecurity Metrics:")
+            self.results_text.append(f"- Avalanche Effect: {metrics['avalanche_effect']:.2f}%")
+            if 'avg_avalanche' in metrics:
+                self.results_text.append(f"- Average Avalanche Effect: {metrics['avg_avalanche']:.2f}%")
+                self.results_text.append(f"- Standard Deviation: {metrics['std_avalanche']:.2f}%")
+            
+            if metrics['report_file']:
+                self.results_text.append(f"\nSecurity Report saved to: {metrics['report_file']}")
+                self.current_report_path = metrics['report_file']
+                self.view_report_button.setEnabled(True)
+            else:
+                self.view_report_button.setEnabled(False)
+            
+        except Exception as e:
+            self.results_text.append(f"\nError: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Analysis failed: {str(e)}")
+
+    def view_report(self):
+        if self.current_report_path and os.path.exists(self.current_report_path):
+            # Open the report using the default system application
+            import subprocess
+            import sys
+            
+            if sys.platform.startswith('darwin'):  # macOS
+                subprocess.call(('open', self.current_report_path))
+            elif sys.platform.startswith('win'):  # Windows
+                os.startfile(self.current_report_path)
+            else:  # Linux
+                subprocess.call(('xdg-open', self.current_report_path))
+        else:
+            QMessageBox.warning(self, "Error", "Report file not found.")
 
 def run_gui():
     app = QApplication(sys.argv)
