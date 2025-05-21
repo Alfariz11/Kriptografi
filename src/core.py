@@ -12,12 +12,12 @@ from utils import text_to_bits, bits_to_text
 
 
 def image_to_base64(image_path):
-    """Konversi gambar ke string base64"""
+
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode('utf-8')
     
 def generate_audio(output_file, duration=10, sample_rate=44100):
-    """Membuat file audio sampel dengan gelombang sinus sederhana."""
+
     t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
     audio_data = 0.5 * np.sin(2 * np.pi * 440 * t)
     sf.write(output_file, audio_data, sample_rate)
@@ -26,13 +26,7 @@ def generate_audio(output_file, duration=10, sample_rate=44100):
 
 
 def prepare_message(message):
-    """
-    Menyiapkan pesan dengan enkripsi ganda ECC kemudian RSA
-    Args:
-        message (str): Pesan yang akan dienkripsi
-    Returns:
-        tuple: (all_bits, ecc_crypto, rsa_crypto) - bit pesan dan instance crypto
-    """
+
     # Buat instance ECC
     print("Membuat kunci ECC...")
     ecc_crypto = SimplifiedECCCrypto()
@@ -82,17 +76,7 @@ def prepare_message(message):
 
 
 def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, is_image=False):
-    """
-    Menyisipkan pesan atau gambar ke dalam file audio.
-    Args:
-        input_file (str, optional): Path ke file audio input
-        output_file (str, optional): Path ke file audio output
-        message (str, optional): Pesan atau path gambar
-        alpha (float, optional): Parameter DWT, default 0.001
-        is_image (bool): Jika True, message adalah path ke gambar
-    Returns:
-        str: Path ke file output, atau None jika gagal
-    """
+
     os.makedirs('output', exist_ok=True)
 
     if input_file is None:
@@ -125,7 +109,7 @@ def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, 
         return None
 
     if alpha is None:
-        alpha_str = input("Masukkan nilai alpha untuk DWT (default 0.001): ").strip()
+        alpha_str = input("Masukkan nilai alpha DWT (default 0.001): ").strip()
         alpha = 0.001
         if alpha_str:
             try:
@@ -135,9 +119,9 @@ def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, 
     print(f"Menggunakan alpha = {alpha}")
 
     try:
-        print("Menyiapkan pesan dengan enkripsi ganda ECC+RSA...")
+        print("Menyiapkan pesan dengan enkripsi ganda ECC dan RSA...")
         all_bits, ecc_crypto, rsa_crypto = prepare_message(message)
-        print(f"Pesan terenkripsi dengan panjang: {len(all_bits)} bit")
+        print(f"Pesan terenkripsi dengan panjang bit: {len(all_bits)} bit")
 
         dwt = AudioDWT(wavelet='db2', level=1)
 
@@ -146,7 +130,7 @@ def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, 
 
         capacity = len(coeffs[1])
         if len(all_bits) > capacity:
-            print(f"Pesan terlalu panjang! Kapasitas maksimal: {capacity} bit, "
+            print(f"Pesan terlalu panjang!, Kapasitas maksimal: {capacity} bit, "
                   f"Pesan terenkripsi: {len(all_bits)} bit")
             return None
 
@@ -162,14 +146,14 @@ def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, 
             reconstructed_data = reconstructed_stereo
 
         dwt.save_audio(output_file, reconstructed_data, sample_rate)
-        print(f"Pesan berhasil disembunyikan dalam file: {output_file}")
+        print(f"Pesan telah berhasil disembunyikan dalam file: {output_file}")
 
         key_file = output_file + ".key"
         with open(key_file, 'w') as f:
-            f.write("===== KUNCI ECC =====\n")
+            f.write("== KUNCI ECC ==\n")
             f.write(f"PUBLIC KEY ECC:\n{ecc_crypto.get_public_key()}\n")
             f.write(f"PRIVATE KEY ECC:\n{ecc_crypto.get_private_key()}\n")
-            f.write("===== KUNCI RSA =====\n")
+            f.write("== KUNCI RSA ==\n")
             f.write(f"PUBLIC KEY RSA:\n{rsa_crypto.get_public_key()}\n")
             f.write(f"PRIVATE KEY RSA:\n{rsa_crypto.get_private_key()}\n")
 
@@ -296,13 +280,7 @@ def extract_message(stego_file=None):
         return None
     
 def debug_extract(stego_file=None, num_bits=None):
-    """
-    Fungsi debug untuk mengekstrak dan menampilkan data mentah.
-    
-    Args:
-        stego_file (str, optional): Path ke file audio stego
-        num_bits (int, optional): Jumlah bit yang akan diekstrak
-    """
+
     # Tanya nama file audio stego jika tidak diberikan
     if stego_file is None:
         stego_file = input("Masukkan path file audio yang akan di-debug: ").strip()
@@ -374,7 +352,7 @@ def debug_extract(stego_file=None, num_bits=None):
         
         try:
             header = json.loads(header_text)
-            print("\n===== HEADER DIPARSE DENGAN SUKSES =====")
+            print("\n== HEADER DIPARSE DENGAN SUKSES ==")
             print(f"Message length: {header.get('message_length', 'N/A')}")
             if 'ecc_public_key' in header:
                 print("ECC public key tersedia")
@@ -394,12 +372,12 @@ def debug_extract(stego_file=None, num_bits=None):
         message_bits = all_extracted_bits[32+header_length:]
         message_text = bits_to_text(message_bits)
         
-        print("\n===== PESAN TERENKRIPSI (awal) =====")
+        print("\n== PESAN TERENKRIPSI (awal) ==")
         print(message_text[:100] + "..." if len(message_text) > 100 else message_text)
         
         try:
             message_json = json.loads(message_text)
-            print("\n===== PESAN BERHASIL DIPARSE =====")
+            print("\n== PESAN BERHASIL DIPARSE ==")
             print("Pesan dalam format JSON yang valid")
         except json.JSONDecodeError as e:
             print(f"\nERROR: Gagal mem-parse pesan JSON: {str(e)}")

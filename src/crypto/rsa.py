@@ -1,6 +1,3 @@
-"""
-Implementasi RSA sederhana untuk enkripsi dan dekripsi pesan
-"""
 import os
 import base64
 import hashlib
@@ -12,50 +9,30 @@ from Cryptodome.Util.Padding import pad, unpad
 
 class SimpleRSACrypto:
     def __init__(self, key_size=2048):
-        """
-        Inisialisasi RSA sederhana
-        
-        Args:
-            key_size (int): Ukuran kunci dalam bit (default: 2048)
-        """
+
         self.key_size = key_size
         self.key = None
         self.generate_key()
     
     def generate_key(self):
-        """
-        Menghasilkan pasangan kunci RSA
-        """
+
         self.key = RSA.generate(self.key_size)
         return self.key
     
     def get_public_key(self):
-        """
-        Mendapatkan kunci publik dalam format yang dapat diserialisasi
-        """
+
         if not self.key:
             self.generate_key()
         return self.key.publickey().export_key().decode('utf-8')
     
     def get_private_key(self):
-        """
-        Mendapatkan kunci privat dalam format yang dapat diserialisasi
-        """
+
         if not self.key:
             self.generate_key()
         return self.key.export_key().decode('utf-8')
     
     def encrypt_text(self, plaintext):
-        """
-        Enkripsi teks menggunakan pendekatan hybrid
-        (AES untuk pesan, RSA untuk kunci sesi)
-        
-        Args:
-            plaintext (str): Teks yang akan dienkripsi
-            
-        Returns:
-            tuple: (encrypted_data_base64, encrypted_session_key_base64)
-        """
+
         # Buat kunci sesi untuk AES
         session_key = get_random_bytes(16)
         
@@ -77,16 +54,7 @@ class SimpleRSACrypto:
         return encrypted_data_base64, encrypted_session_key_base64
     
     def load_key(self, key_str, is_private=True):
-        """
-        Memuat kunci RSA dari string PEM.
-        
-        Args:
-            key_str (str): String PEM yang berisi kunci
-            is_private (bool): True jika kunci private, False jika kunci public
-            
-        Returns:
-            bool: True jika berhasil, False jika gagal
-        """
+
         try:
             if is_private:
                 self.key = RSA.import_key(key_str)
@@ -98,16 +66,7 @@ class SimpleRSACrypto:
             return False
     
     def decrypt_text(self, encrypted_data_base64, encrypted_session_key_base64):
-        """
-        Dekripsi teks yang dienkripsi
-        
-        Args:
-            encrypted_data_base64 (str): Data terenkripsi dalam format base64
-            encrypted_session_key_base64 (str): Kunci sesi terenkripsi dalam format base64
-            
-        Returns:
-            str: Teks yang didekripsi
-        """
+
         try:
             # Dekode dari base64
             encrypted_data = base64.b64decode(encrypted_data_base64)
@@ -146,15 +105,7 @@ class SimpleRSACrypto:
             raise
     
     def hash_message(self, message):
-        """
-        Menghasilkan hash SHA-256 dari pesan
-        
-        Args:
-            message (str): Pesan yang akan di-hash
-            
-        Returns:
-            str: Hash SHA-256 dalam format hexadecimal
-        """
+
         if isinstance(message, str):
             message = message.encode('utf-8')
         return hashlib.sha256(message).hexdigest() 
