@@ -1,7 +1,3 @@
-"""
-Implementasi ECC yang lebih sederhana untuk enkripsi dan dekripsi pesan
-Tanpa ketergantungan pada DiffieHellman
-"""
 import os
 import hashlib
 import base64
@@ -12,31 +8,23 @@ from Cryptodome.Util.Padding import pad, unpad
 
 class SimplifiedECCCrypto:
     def __init__(self):
-        """
-        Inisialisasi ECC sederhana
-        """
+
         self.key = None
         self.generate_key()
     
     def generate_key(self):
-        """
-        Menghasilkan pasangan kunci ECC
-        """
+
         self.key = ECC.generate(curve='P-256')
         return self.key
     
     def get_public_key(self):
-        """
-        Mendapatkan kunci publik dalam format yang dapat diserialisasi
-        """
+
         if not self.key:
             self.generate_key()
         return self.key.public_key().export_key(format='PEM')
     
     def get_private_key(self):
-        """
-        Mendapatkan kunci privat dalam format yang dapat diserialisasi
-        """
+
         if not self.key:
             self.generate_key()
         return self.key.export_key(format='PEM')
@@ -63,16 +51,7 @@ class SimplifiedECCCrypto:
         return encrypted_data_base64, session_key_base64
     
     def load_key(self, key_str, is_private=True):
-        """
-        Memuat kunci ECC dari string PEM.
-        
-        Args:
-            key_str (str): String PEM yang berisi kunci
-            is_private (bool): True jika kunci private, False jika kunci public
-            
-        Returns:
-            bool: True jika berhasil, False jika gagal
-        """
+
         try:
             if is_private:
                 self.key = ECC.import_key(key_str)
@@ -110,15 +89,7 @@ class SimplifiedECCCrypto:
             raise
     
     def hash_message(self, message):
-        """
-        Menghasilkan hash SHA-256 dari pesan
-        
-        Args:
-            message (str): Pesan yang akan di-hash
-            
-        Returns:
-            str: Hash SHA-256 dalam format hexadecimal
-        """
+
         if isinstance(message, str):
             message = message.encode('utf-8')
         return hashlib.sha256(message).hexdigest() 

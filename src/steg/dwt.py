@@ -5,51 +5,17 @@ from scipy import signal
 
 class AudioDWT:
     def __init__(self, wavelet='db1', level=1):
-        """
-        Inisialisasi AudioDWT dengan tipe wavelet dan level dekomposisi.
-        
-        Args:
-            wavelet (str): Tipe wavelet yang digunakan (default: 'db1')
-            level (int): Level dekomposisi DWT (default: 1)
-        """
         self.wavelet = wavelet
         self.level = level
     
     def read_audio(self, file_path):
-        """
-        Membaca file audio dan mengambil data serta sample rate.
-        
-        Args:
-            file_path (str): Path ke file audio
-            
-        Returns:
-            tuple: (data_audio, sample_rate)
-        """
         data, sample_rate = sf.read(file_path)
         return data, sample_rate
     
     def save_audio(self, file_path, data, sample_rate):
-        """
-        Menyimpan data audio ke file.
-        
-        Args:
-            file_path (str): Path untuk menyimpan file audio
-            data (numpy.ndarray): Data audio
-            sample_rate (int): Sample rate audio
-        """
         sf.write(file_path, data, sample_rate)
     
     def apply_dwt(self, audio_data):
-        """
-        Menerapkan Discrete Wavelet Transform pada data audio.
-        
-        Args:
-            audio_data (numpy.ndarray): Data audio
-            
-        Returns:
-            list: Koefisien wavelet (cA, cD) dimana cA adalah koefisien aproksimasi
-                 dan cD adalah koefisien detail
-        """
         # Jika data stereo, ambil salah satu channel (misalnya channel pertama)
         if len(audio_data.shape) > 1 and audio_data.shape[1] > 1:
             data_for_dwt = audio_data[:, 0]
@@ -61,31 +27,11 @@ class AudioDWT:
         return coeffs
     
     def apply_idwt(self, coeffs):
-        """
-        Menerapkan Inverse Discrete Wavelet Transform untuk merekonstruksi data audio.
-        
-        Args:
-            coeffs (list): Koefisien wavelet
-            
-        Returns:
-            numpy.ndarray: Data audio hasil rekonstruksi
-        """
         # Rekonstruksi data
         reconstructed_data = pywt.waverec(coeffs, self.wavelet)
         return reconstructed_data
     
     def embed_bits_in_coefficients(self, coeffs, bits, alpha=0.001):
-        """
-        Menyisipkan bit dalam koefisien detail DWT.
-        
-        Args:
-            coeffs (list): Koefisien wavelet
-            bits (str): String bit yang akan disisipkan
-            alpha (float): Faktor skala untuk penyisipan (default: 0.001)
-            
-        Returns:
-            list: Koefisien wavelet yang telah dimodifikasi
-        """
         # Modifikasi koefisien detail (level 1)
         detail_coeffs = coeffs[1].copy()  # Buat salinan koefisien untuk mencegah modifikasi langsung
         modified_coeffs = list(coeffs.copy())  # Konversi ke list untuk memudahkan manipulasi
@@ -124,9 +70,6 @@ class AudioDWT:
         return modified_coeffs
     
     def extract_bits_from_coefficients(self, coeffs, num_bits, alpha=0.001):
-        """
-        Ekstrak bit dari koefisien detail DWT dengan sensitivitas adaptif.
-        """
         # Koefisien detail (level 1)
         detail_coeffs = coeffs[1]
         extracted_bits = ""
@@ -152,15 +95,6 @@ class AudioDWT:
         return extracted_bits
     
     def bits_to_bytes(self, bits):
-        """
-        Konversi string bit ke bytes.
-        
-        Args:
-            bits (str): String bit
-            
-        Returns:
-            bytes: Data bytes
-        """
         # Pastikan panjang bit adalah kelipatan 8
         padded_bits = bits
         if len(bits) % 8 != 0:
@@ -175,15 +109,6 @@ class AudioDWT:
         return bytes(bytes_data)
     
     def bytes_to_bits(self, data):
-        """
-        Konversi bytes ke string bit.
-        
-        Args:
-            data (bytes): Data bytes
-            
-        Returns:
-            str: String bit
-        """
         bits = ""
         for byte in data:
             bits += bin(byte)[2:].zfill(8)  # Hilangkan '0b' di awal dan tambahkan 0 hingga 8 bit
@@ -191,17 +116,7 @@ class AudioDWT:
         return bits
     
     def embed_data(self, audio_path, output_path, data_bits):
-        """
-        Menyisipkan data bit ke dalam file audio menggunakan DWT.
-        
-        Args:
-            audio_path (str): Path ke file audio asli
-            output_path (str): Path untuk menyimpan file audio yang telah disisipi
-            data_bits (str): String bit yang akan disisipkan
-            
-        Returns:
-            bool: True jika berhasil
-        """
+
         # Baca file audio
         audio_data, sample_rate = self.read_audio(audio_path)
         
@@ -231,16 +146,7 @@ class AudioDWT:
         return True
     
     def extract_data(self, stego_audio_path, num_bits):
-        """
-        Mengekstrak data bit dari file audio yang telah disisipi.
-        
-        Args:
-            stego_audio_path (str): Path ke file audio yang telah disisipi
-            num_bits (int): Jumlah bit yang akan diekstrak
-            
-        Returns:
-            str: String bit yang diekstrak
-        """
+
         # Baca file audio stego
         stego_data, sample_rate = self.read_audio(stego_audio_path)
         
