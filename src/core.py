@@ -4,6 +4,7 @@ import base64
 import numpy as np
 import soundfile as sf
 from PIL import Image
+from PyPDF2 import PdfReader
 
 # Modul lokal
 from steg import AudioDWT
@@ -75,8 +76,21 @@ def prepare_message(message):
     return all_bits, ecc_crypto, rsa_crypto
 
 
-def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, is_image=False):
-
+def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, is_image=False, is_pdf=False):
+    """
+    Menyembunyikan pesan, gambar, atau PDF dalam file audio
+    
+    Args:
+        input_file: Path file audio asli (jika None, akan meminta input)
+        output_file: Path file audio hasil (jika None, akan meminta input)
+        message: Pesan teks, path gambar, atau path PDF 
+        alpha: Parameter alpha untuk DWT
+        is_image: Flag apakah message adalah path gambar
+        is_pdf: Flag apakah message adalah path PDF
+        
+    Returns:
+        Path file output jika berhasil, None jika gagal
+    """
     os.makedirs('output', exist_ok=True)
 
     if input_file is None:
@@ -91,12 +105,24 @@ def embed_message(input_file=None, output_file=None, message=None, alpha=0.001, 
         output_file = 'output/stego.wav'
 
     if message is None:
-        if is_image:
+        if is_pdf:
+            message = input("Masukkan path PDF: ")
+        elif is_image:
             message = input("Masukkan path gambar: ")
         else:
             message = input("Masukkan pesan: ")
 
-    if is_image:
+    if is_pdf:
+        print(f"Memproses PDF: {message}")
+        try:
+            message = pdf_to_base64(message)
+            if not message:
+                print("Gagal memproses file PDF")
+                return None
+        except Exception as e:
+            print(f"Gagal membaca PDF: {e}")
+            return None
+    elif is_image:
         print(f"Memproses gambar: {message}")
         try:
             message = image_to_base64(message)
@@ -268,8 +294,35 @@ def extract_message(stego_file=None):
                 ecc_crypto.load_key(ecc_private_key)
 
             decrypted_message = ecc_crypto.decrypt_text(ecc_encrypted_data_base64, ecc_key_base64)
-            print(f"\nPesan yang diekstrak:\n{decrypted_message}")
-            return decrypted_message
+            print(f"\nPesan yang diekstrak:\n{decrypted_message[:100]}..." 
+                  if len(decrypted_message) > 100 else decrypted_message)
+            
+            # Deteksi tipe pesan (PDF, gambar, atau teks biasa)
+            try:
+                # Coba parse sebagai JSON untuk mendeteksi PDF atau format lain
+                message_data = json.loads(decrypted_message)
+                
+                # Jika memiliki metadata dengan tipe PDF, simpan sebagai PDF
+                if "metadata" in message_data and message_data["metadata"].get("type") == "pdf":
+                    pdf_path = save_extracted_pdf(decrypted_message)
+                    if pdf_path:
+                        print(f"File PDF disimpan di: {pdf_path}")
+                    return {"type": "pdf", "message": decrypted_message, "path": pdf_path}
+                else:
+                    # JSON lainnya
+                    return {"type": "json", "message": decrypted_message}
+                    
+            except json.JSONDecodeError:
+                # Bukan JSON, cek apakah base64 gambar
+                if (len(decrypted_message) > 100 and 
+                    all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" 
+                        for c in decrypted_message[:100])):
+                    return {"type": "image", "message": decrypted_message}
+                else:
+                    # Kemungkinan teks biasa
+                    return {"type": "text", "message": decrypted_message}
+            
+            return decrypted_message  # Compatibility with old code
 
         except Exception as e:
             print(f"Gagal dekripsi layer RSA: {e}")
@@ -384,3 +437,91 @@ def debug_extract(stego_file=None, num_bits=None):
             
     except Exception as e:
         print(f"ERROR: {str(e)}")
+
+def pdf_to_base64(pdf_path):
+    """Mengkonversi file PDF ke string base64
+    
+    Args:
+        pdf_path: Path ke file PDF
+        
+    Returns:
+        String base64 dari isi PDF dan metadata PDF
+    """
+    try:
+        # Baca file PDF sebagai data biner
+        with open(pdf_path, "rb") as pdf_file:
+            pdf_binary = pdf_file.read()
+        
+        # Konversi ke base64
+        pdf_base64 = base64.b64encode(pdf_binary).decode('utf-8')
+        
+        # Ekstrak metadata untuk informasi tambahan
+        pdf = PdfReader(pdf_path)
+        
+        # Buat metadata PDF
+        pdf_info = {
+            "type": "pdf",
+            "filename": os.path.basename(pdf_path),
+            "pages": len(pdf.pages),
+            "size": len(pdf_binary)
+        }
+        
+        # Gabungkan metadata dan isi
+        result = {
+            "metadata": pdf_info,
+            "content": pdf_base64
+        }
+        
+        return json.dumps(result)
+    except Exception as e:
+        print(f"Error membaca PDF: {e}")
+        return None
+
+def save_extracted_pdf(pdf_json_data, output_file=None):
+    """Menyimpan data PDF yang diekstrak ke file
+    
+    Args:
+        pdf_json_data: String JSON dengan metadata dan konten PDF
+        output_file: Path file output (opsional)
+        
+    Returns:
+        Path file yang disimpan jika berhasil, None jika gagal
+    """
+    try:
+        # Parse data JSON
+        pdf_data = json.loads(pdf_json_data)
+        
+        # Pastikan ini adalah data PDF
+        if pdf_data.get("metadata", {}).get("type") != "pdf":
+            print("Data yang diekstrak bukan file PDF")
+            return None
+        
+        # Ambil nama file asli
+        original_filename = pdf_data["metadata"]["filename"]
+        
+        # Buat direktori output jika belum ada
+        os.makedirs('output/pdf', exist_ok=True)
+        
+        # Tentukan path output
+        if not output_file:
+            output_file = os.path.join('output/pdf', original_filename)
+        
+        # Decode base64 ke binary data
+        pdf_binary = base64.b64decode(pdf_data["content"])
+        
+        # Tulis ke file
+        with open(output_file, 'wb') as f:
+            f.write(pdf_binary)
+        
+        print(f"File PDF berhasil diekstrak dan disimpan di: {output_file}")
+        return output_file
+    
+    except json.JSONDecodeError:
+        print("Format JSON tidak valid")
+        return None
+    except KeyError:
+        print("Data PDF tidak lengkap")
+        return None
+    except Exception as e:
+        print(f"Error saat menyimpan PDF: {e}")
+        return None

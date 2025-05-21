@@ -33,13 +33,29 @@ class WorkerThread(QThread):
                     output_file=self.kwargs.get('output_file'),
                     message=self.kwargs.get('message'),
                     alpha=self.kwargs.get('alpha', 0.001),
-                    is_image=self.kwargs.get('is_image', False)
+                    is_image=self.kwargs.get('is_image', False),
+                    is_pdf=self.kwargs.get('is_pdf', False)  # Tambahkan parameter is_pdf
                 )
                 self.result.emit({"status": "success", "output_file": output_file})
             
             elif self.task == "extract":
-                extracted_message = extract_message(self.kwargs.get('stego_file'))
-                self.result.emit({"status": "success", "message": extracted_message})
+                extracted_result = extract_message(self.kwargs.get('stego_file'))
+                
+                # Handle different result types
+                if isinstance(extracted_result, dict):
+                    self.result.emit({
+                        "status": "success", 
+                        "message": extracted_result.get("message", ""),
+                        "type": extracted_result.get("type", "text"),
+                        "path": extracted_result.get("path", None)
+                    })
+                else:
+                    # For backward compatibility
+                    self.result.emit({
+                        "status": "success", 
+                        "message": extracted_result,
+                        "type": "text"
+                    })
                 
         except Exception as e:
             self.error.emit(f"Error: {str(e)}")
@@ -106,10 +122,12 @@ class AudioStegoGUI(QMainWindow):
         
         self.text_radio = QRadioButton("Text Message")
         self.image_radio = QRadioButton("Image File")
+        self.pdf_radio = QRadioButton("PDF Document")  # Tambah radio button untuk PDF
         self.text_radio.setChecked(True)
         
         message_type_layout.addWidget(self.text_radio)
         message_type_layout.addWidget(self.image_radio)
+        message_type_layout.addWidget(self.pdf_radio)  # Tambahkan ke layout
         message_type_group.setLayout(message_type_layout)
         layout.addWidget(message_type_group)
         
@@ -132,14 +150,30 @@ class AudioStegoGUI(QMainWindow):
         self.image_layout.addWidget(self.image_path)
         self.image_layout.addWidget(browse_image_btn)
         
-        # Initially show text input, hide image input
+        # PDF file selection widget (tambahkan)
+        self.pdf_layout = QHBoxLayout()
+        self.pdf_path = QLineEdit()
+        self.pdf_path.setPlaceholderText("Select PDF document")
+        
+        browse_pdf_btn = QPushButton("Browse...")
+        browse_pdf_btn.clicked.connect(self.browse_pdf_file)
+        
+        self.pdf_layout.addWidget(self.pdf_path)
+        self.pdf_layout.addWidget(browse_pdf_btn)
+        
+        # Initially show text input, hide others
         message_layout.addWidget(self.message_text)
         message_layout.addLayout(self.image_layout)
+        message_layout.addLayout(self.pdf_layout)
         self.image_path.hide()
         browse_image_btn.hide()
+        self.pdf_path.hide()
+        browse_pdf_btn.hide()
         
-        # Connect radio buttons to switch between message input types
+        # Connect radio buttons
         self.text_radio.toggled.connect(self.toggle_message_input)
+        self.image_radio.toggled.connect(self.toggle_message_input)
+        self.pdf_radio.toggled.connect(self.toggle_message_input)
         
         message_group.setLayout(message_layout)
         layout.addWidget(message_group)
@@ -382,15 +416,28 @@ class AudioStegoGUI(QMainWindow):
         layout.addLayout(buttons_layout)
     
     def toggle_message_input(self):
-        """Switch between text and image message input"""
+        """Switch between text, image, and PDF message input"""
+        # Hide all inputs first
+        self.message_text.hide()
+        self.image_path.hide()
+        self.pdf_path.hide()
+        
+        # Hide all browse buttons
+        for btn in self.image_path.parent().findChildren(QPushButton):
+            btn.hide()
+        for btn in self.pdf_path.parent().findChildren(QPushButton):
+            btn.hide()
+        
+        # Show the selected input type
         if self.text_radio.isChecked():
             self.message_text.show()
-            self.image_path.hide()
-            self.image_path.parent().findChild(QPushButton, "").hide()
-        else:
-            self.message_text.hide()
+        elif self.image_radio.isChecked():
             self.image_path.show()
             for btn in self.image_path.parent().findChildren(QPushButton):
+                btn.show()
+        elif self.pdf_radio.isChecked():
+            self.pdf_path.show()
+            for btn in self.pdf_path.parent().findChildren(QPushButton):
                 btn.show()
     
     def browse_input_file(self):
@@ -402,6 +449,12 @@ class AudioStegoGUI(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Image File", "", "Image Files (*.png *.jpg *.jpeg *.bmp)")
         if file_path:
             self.image_path.setText(file_path)
+    
+    def browse_pdf_file(self):
+        """Membuka dialog untuk memilih file PDF"""
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select PDF Document", "", "PDF Files (*.pdf)")
+        if file_path:
+            self.pdf_path.setText(file_path)
     
     def browse_output_file(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Output File", "", "Audio Files (*.wav)")
@@ -444,14 +497,27 @@ class AudioStegoGUI(QMainWindow):
         if self.text_radio.isChecked():
             message = self.message_text.toPlainText()
             is_image = False
+            is_pdf = False
             if not message:
                 QMessageBox.warning(self, "Warning", "Please enter a message.")
                 return
-        else:
+        elif self.image_radio.isChecked():
             message = self.image_path.text()
             is_image = True
+            is_pdf = False
             if not message or not os.path.exists(message):
                 QMessageBox.warning(self, "Warning", "Please select a valid image file.")
+                return
+        elif self.pdf_radio.isChecked():
+            message = self.pdf_path.text()
+            is_image = False
+            is_pdf = True
+            if not message or not os.path.exists(message):
+                QMessageBox.warning(self, "Warning", "Please select a valid PDF document.")
+                return
+            # Verifikasi bahwa file adalah PDF
+            if not message.lower().endswith('.pdf'):
+                QMessageBox.warning(self, "Warning", "The selected file is not a PDF document.")
                 return
         
         input_file = self.input_file_path.text() if self.input_file_path.text() else None
@@ -471,7 +537,8 @@ class AudioStegoGUI(QMainWindow):
             output_file=output_file,
             message=message,
             alpha=alpha,
-            is_image=is_image
+            is_image=is_image,
+            is_pdf=is_pdf
         )
         self.worker.message.connect(self.log_message)
         self.worker.error.connect(self.handle_error)
@@ -533,17 +600,28 @@ class AudioStegoGUI(QMainWindow):
         """Handle the result from the extract thread"""
         if result["status"] == "success":
             extracted_message = result["message"]
+            message_type = result.get("type", "text")
             
             if extracted_message:
-                # Check if it might be base64-encoded image
-                if extracted_message.startswith("data:image") or (
-                    len(extracted_message) > 100 and 
-                    all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" 
-                        for c in extracted_message[:100])
-                ):
+                if message_type == "pdf":
+                    pdf_path = result.get("path")
+                    self.extracted_message.setPlainText(f"[PDF document extracted]\nSaved to: {pdf_path}")
+                    
+                    # Tanya pengguna apakah ingin membuka PDF
+                    reply = QMessageBox.question(
+                        self, 
+                        "PDF Document Extracted", 
+                        f"PDF document successfully extracted and saved to:\n{pdf_path}\n\nWould you like to open it?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.open_file(pdf_path)
+                        
+                elif message_type == "image":
                     self.extracted_message.setPlainText("[The extracted data appears to be an image]")
                     
-                    # Ask if user wants to save the image
+                    # Tanya apakah pengguna ingin menyimpan gambar
                     reply = QMessageBox.question(
                         self, 
                         "Image Detected", 
@@ -554,11 +632,30 @@ class AudioStegoGUI(QMainWindow):
                     if reply == QMessageBox.StandardButton.Yes:
                         self.save_extracted_image(extracted_message)
                 else:
+                    # Teks biasa atau jenis lain
                     self.extracted_message.setPlainText(extracted_message)
             else:
                 self.extracted_message.setPlainText("Error: Failed to extract message or message is empty.")
         
         self.extract_button.setEnabled(True)
+
+    def open_file(self, file_path):
+        """Open a file with the default system application"""
+        if file_path and os.path.exists(file_path):
+            import subprocess
+            import sys
+            
+            try:
+                if sys.platform.startswith('darwin'):  # macOS
+                    subprocess.call(('open', file_path))
+                elif sys.platform.startswith('win'):  # Windows
+                    os.startfile(file_path)
+                else:  # Linux
+                    subprocess.call(('xdg-open', file_path))
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to open file: {str(e)}")
+        else:
+            QMessageBox.warning(self, "Error", "File not found.")
     
     def save_extracted_image(self, base64_data):
         """Save the extracted base64 image to a file"""

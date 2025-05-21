@@ -29,10 +29,11 @@ def main():
         print("="*60 + RESET)
         print(f"{GREEN}1.{RESET} Sisipkan pesan ke dalam file audio")
         print(f"{GREEN}2.{RESET} Sisipkan gambar ke dalam file audio")
-        print(f"{GREEN}3.{RESET} Ekstrak pesan dari file audio")
-        print(f"{GREEN}4.{RESET} Keluar")
+        print(f"{GREEN}3.{RESET} Sisipkan dokumen PDF ke dalam file audio") # Tambahkan opsi PDF
+        print(f"{GREEN}4.{RESET} Ekstrak pesan dari file audio")
+        print(f"{GREEN}5.{RESET} Keluar")
 
-        choice = input(f"\n{YELLOW}Pilih menu (1-4): {RESET}")
+        choice = input(f"\n{YELLOW}Pilih menu (1-5): {RESET}")
 
         if choice == '1':
             clear_screen()
@@ -48,24 +49,47 @@ def main():
                 embed_message(message=image_path, is_image=True)
             except Exception as e:
                 print(f"{RED}[ERROR] {e}{RESET}")
+        
+        elif choice == '3': # Tambahkan pilihan untuk PDF
+            clear_screen()
+            pdf_path = input(f"{YELLOW}Masukkan path dokumen PDF (misal: input/skripsi.pdf): {RESET}")
+            loading_animation("Memproses dokumen PDF")
+            try:
+                embed_message(message=pdf_path, is_pdf=True)
+            except Exception as e:
+                print(f"{RED}[ERROR] {e}{RESET}")
 
-        elif choice == '3':
+        elif choice == '4':
             clear_screen()
             print(f"{YELLOW}Ekstraksi pesan dari file audio...{RESET}")
             loading_animation("Mengekstrak data")
             result = extract_message()
+            
             if result:
-                print(f"\n{GREEN}Pesan berhasil diekstrak:{RESET}")
-                print(f"{result[:100] + '...' if len(result) > 100 else result}")
+                if isinstance(result, dict):
+                    print(f"\n{GREEN}Pesan berhasil diekstrak:{RESET}")
+                    
+                    if result.get('type') == 'pdf':
+                        pdf_path = result.get('path')
+                        if pdf_path:
+                            print(f"{GREEN}Dokumen PDF berhasil diekstrak dan disimpan di: {pdf_path}{RESET}")
+                    elif result.get('type') == 'image':
+                        print(f"{GREEN}[Data gambar terdeteksi]{RESET}")
+                    else:
+                        message = result.get('message', '')
+                        print(f"{message[:100] + '...' if len(message) > 100 else message}")
+                else:
+                    # Backward compatibility
+                    print(f"{result[:100] + '...' if len(result) > 100 else result}")
             else:
                 print(f"{RED}Gagal mengekstrak pesan atau pesan kosong.{RESET}")
 
-        elif choice == '4':
+        elif choice == '5':
             print(f"{BLUE}\nKeluar dari program. Terima kasih telah menggunakan aplikasi ini!{RESET}")
             break
 
         else:
-            print(f"{RED}Pilihan tidak valid. Silakan pilih antara 1-4.{RESET}")
+            print(f"{RED}Pilihan tidak valid. Silakan pilih antara 1-5.{RESET}")
 
         input(f"\n{YELLOW}Tekan Enter untuk melanjutkan...{RESET}")
         clear_screen()
